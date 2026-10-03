@@ -1,0 +1,41 @@
+{
+  "expo": {
+    "name": "FIRE CARE",
+    "slug": "fire-safety-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "소방설비 점검 사진과 영상을 선택하기 위해 사진 보관함 접근 권한이 필요합니다.",
+        "NSCameraUsageDescription": "소방설비 인증 사진과 영상을 촬영하기 위해 카메라 권한이 필요합니다."
+      }
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "소방설비 점검 사진과 영상을 선택하기 위해 접근 권한이 필요합니다.",
+          "cameraPermission": "소방설비 인증 자료를 촬영하기 위해 카메라 권한이 필요합니다."
+        }
+      ],
+      "expo-document-picker",
+      "expo-secure-store",
+      "expo-status-bar"
+    ],
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#E6F4FE",
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
+      },
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    }
+  }
+}
