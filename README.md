@@ -1,6 +1,54 @@
 # FIRE CARE
 
-스마트앱을 활용한 실시간 소방설비 통합관리 모바일 프로토타입입니다. Expo/React Native 앱과 Node.js API 서버로 구성되어 있습니다.
+AI 기반 시설설비 점검 및 보고서 자동화 모바일 앱입니다. Expo/React Native 앱과 Node.js API 서버로 구성되어 있으며, Gemini 사진 분석과 PostgreSQL 저장 구조를 활용해 현장 점검 업무를 보조합니다.
+
+![FIRE CARE App Flow](./ppt-assets/fire-care-app-flow-onepage.svg.png)
+
+---
+
+## Project Summary
+
+FIRE CARE는 작업자가 건물 내 설비를 등록하고, 설비별 체크리스트를 확인한 뒤, 인증사진을 촬영해 점검 결과를 저장하는 모바일 프로토타입입니다.
+
+핵심 설계 방향은 **AI가 점검자를 대체하지 않고, 현장 점검자가 판단할 수 있도록 보조하는 것**입니다. Gemini는 사진으로 확인 가능한 항목만 판정하고, 사진으로 확인할 수 없는 항목은 작업자가 직접 확인하도록 분리했습니다.
+
+---
+
+## Key Results
+
+| Area | Result |
+|---|---|
+| 설비 체크리스트 | 16개 설비 유형, 137개 점검 항목 DB 저장 |
+| AI 안전장치 | 설비-사진 불일치, 저품질 사진, 확인 불가 항목 저장 차단 |
+| 데이터 저장 | 사용자, 건물, 층, 설비, 점검 결과, 사진 경로를 PostgreSQL에 영구 저장 |
+| 동기화 | 같은 회사 계정의 여러 휴대폰에서 동일 건물·설비 데이터 조회 |
+| 보고서 자동화 | 건물 전체 점검 결과와 인증사진을 묶어 HTML 보고서 생성 |
+| 메일 발송 | Gmail SMTP 기반 보고서 이메일 전송 |
+
+---
+
+## Troubleshooting
+
+| Issue | Risk | Solution |
+|---|---|---|
+| 사용자가 선택한 설비와 사진 속 설비가 다를 수 있음 | 잘못된 설비에 점검 결과가 저장되어 현장 데이터 신뢰도가 낮아질 수 있음 | Gemini가 먼저 선택 설비와 사진 속 설비의 일치 여부를 확인하고, 불일치 시 저장 차단 |
+| 어둡거나 흐린 사진으로 AI 분석이 진행될 수 있음 | 낮은 품질의 사진으로 인해 AI 오판정 또는 확인 불가 항목 증가 | 사진 품질 검사를 통해 어두움, 흐림, 원거리, 잘림 사진은 재촬영 안내 |
+| 여러 작업자가 같은 건물을 점검할 때 데이터가 달라질 수 있음 | 작업자별 데이터가 따로 저장되어 관리자와 현장 작업자 간 정보 불일치 발생 | PostgreSQL 서버 DB에 사용자, 건물, 층, 설비, 점검 결과를 저장하여 여러 휴대폰에서 동일 데이터 동기화 |
+
+---
+
+## Tech Stack
+
+| Layer | Skills |
+|---|---|
+| Mobile | React Native, Expo, TypeScript, Expo Image Picker, Expo SecureStore |
+| Backend | Node.js, Express, REST API, JWT Authentication, bcrypt |
+| Database | PostgreSQL, tenant-based data isolation, checklist master table |
+| AI | Gemini Vision, equipment-image matching, image quality validation, evidence region visualization |
+| Report | HTML report generation, Gmail SMTP, building-level inspection report |
+| Engineering | API design, DB schema design, role-based access control, error handling, retry UX |
+
+---
 
 ## 구현된 흐름
 
