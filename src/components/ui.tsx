@@ -8,12 +8,15 @@ import {
   Text,
   TextInput,
   View,
+  useWindowDimensions,
 } from 'react-native';
 import { StatusBar } from 'expo-status-bar';
 import { colors, shadow } from '../theme';
 
 export function Screen({ children, scroll = true }: { children: ReactNode; scroll?: boolean }) {
-  const content = <View style={styles.screenContent}>{children}</View>;
+  const { width } = useWindowDimensions();
+  const tablet = width >= 768;
+  const content = <View style={[styles.screenContent, tablet && styles.tabletContent]}>{children}</View>;
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
@@ -23,12 +26,14 @@ export function Screen({ children, scroll = true }: { children: ReactNode; scrol
 }
 
 export function Header({ title, subtitle, onBack }: { title: string; subtitle?: string; onBack?: () => void }) {
+  const { width } = useWindowDimensions();
+  const tablet = width >= 768;
   return (
     <View style={styles.header}>
       {onBack ? (
         <Pressable onPress={onBack} style={styles.backButton}><Text style={styles.backText}>‹</Text></Pressable>
       ) : null}
-      <View style={styles.headerCopy}>
+      <View style={[styles.headerCopy, tablet && styles.tabletHeaderCopy]}>
         <Text style={styles.headerTitle}>{title}</Text>
         {subtitle ? <Text style={styles.headerSubtitle}>{subtitle}</Text> : null}
       </View>
@@ -103,8 +108,10 @@ const styles = StyleSheet.create({
   safeArea: { backgroundColor: colors.background, flex: 1 },
   scroll: { flexGrow: 1 },
   screenContent: { flex: 1, padding: 20, paddingBottom: 36 },
+  tabletContent: { alignSelf: 'center', maxWidth: 960, paddingHorizontal: 36, width: '100%' },
   header: { alignItems: 'center', flexDirection: 'row', marginBottom: 22, minHeight: 52 },
   headerCopy: { flex: 1 },
+  tabletHeaderCopy: { maxWidth: 760 },
   headerTitle: { color: colors.text, fontSize: 23, fontWeight: '800' },
   headerSubtitle: { color: colors.muted, fontSize: 13, marginTop: 4 },
   backButton: { alignItems: 'center', backgroundColor: colors.surface, borderRadius: 14, height: 42, justifyContent: 'center', marginRight: 12, width: 42 },
