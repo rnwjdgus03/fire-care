@@ -9,6 +9,13 @@ export type WorkspacePayload = {
 };
 export type AuthResponse = AuthTokens & { workspace: WorkspacePayload };
 
+async function blobPart(uri: string, fallbackType = 'image/jpeg') {
+  const fetched = await fetch(uri).then((response) => response.blob());
+  const extension = uri.split('?')[0].split('.').pop()?.toLowerCase();
+  const type = extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : fallbackType;
+  return { blob: new Blob([fetched], { type }), extension: extension === 'png' || extension === 'webp' ? extension : 'jpg' };
+}
+
 export type AnalysisResponse = {
   detectedEquipmentType: string; officialEquipmentType: string; equipmentMatch: boolean; matchConfidence: number; mismatchReason: string;
   summary: string; detectedIssues: string[]; riskLevel: '정상' | '주의' | '위험';
@@ -16,7 +23,7 @@ export type AnalysisResponse = {
   qualityThresholds: { equipmentMatch: number; itemJudgement: number; evidenceRequired: true };
   checklist: Array<{ id: string; sourceItemId: string; isOfficialItemNumber: boolean; label: string; status: '정상' | '이상' | '확인 불가'; reason: string; confidence: number; evidenceRegions: Array<{ x: number; y: number; width: number; height: number; label: string }>; section: string; verificationMode: 'PHOTO' | 'MANUAL'; inspectionScope: '작동·종합점검' | '종합점검' | '성능점검' }>;
   legalBasis: { regulation: string; noticeNumber: string; effectiveDate: string; form: string; versionLabel: string; sourceUrl: string; verifiedAt: string };
-  classificationNotice?: string; assistanceNotice: string; demo?: boolean;
+  classificationNotice?: string; assistanceNotice: string; demo?: boolean; cached?: boolean;
 };
 
 export type ChecklistResponse = Pick<AnalysisResponse, 'officialEquipmentType' | 'classificationNotice' | 'assistanceNotice' | 'legalBasis'> & {
@@ -65,7 +72,16 @@ export async function removeEquipment(buildingId: string, equipmentId: string, a
 }
 export async function analyzeInspectionMedia(uri: string, mediaType: 'image' | 'video', equipmentType: string, accessToken: string): Promise<AnalysisResponse> {
   const form = new FormData();
-  form.append('media', { uri, name: 'inspection.jpg', type: 'image/jpeg' } as never);
+  // Expo SDK 58/Hermes can reject the legacy React Native `{ uri, name, type }`
+  // FormData part. Convert the local asset URI to a real Blob first.
+  const fetchedBlob = await fetch(uri).then((response) => response.blob());
+  const extension = uri.split('?')[0].split('.').pop()?.toLowerCase();
+  const imageType = extension === 'png' ? 'image/png' : extension === 'webp' ? 'image/webp' : 'image/jpeg';
+  const mediaMimeType = mediaType === 'video' ? 'video/mp4' : imageType;
+  // Some remote image URLs return an empty/octet-stream Blob type. Re-wrap it
+  // with an allowed MIME type so the server's image filter accepts it.
+  const mediaBlob = new Blob([fetchedBlob], { type: mediaMimeType });
+  form.append('media', mediaBlob, mediaType === 'video' ? 'inspection.mp4' : `inspection.${extension === 'png' || extension === 'webp' ? extension : 'jpg'}`);
   form.append('equipmentType', equipmentType);
   return bodyOf(await fetch(`${API_URL}/api/analyze`, { method: 'POST', headers: bearer(accessToken), body: form }));
 }
@@ -74,7 +90,10 @@ export async function fetchChecklist(equipmentType: string, accessToken: string)
 }
 export async function submitInspection(result: InspectionResult, accessToken: string) {
   const form = new FormData(); form.append('result', JSON.stringify(result));
-  if (result.mediaUri && result.mediaType) form.append('media', { uri: result.mediaUri, name: `inspection-${result.equipmentId}.jpg`, type: 'image/jpeg' } as never);
+  if (result.mediaUri && result.mediaType) {
+    const part = await blobPart(result.mediaUri);
+    form.append('media', part.blob, `inspection-${result.equipmentId}.${part.extension}`);
+  }
   return bodyOf(await fetch(`${API_URL}/api/inspections`, { method: 'POST', headers: bearer(accessToken), body: form }));
 }
 export async function fetchQualityMetrics(buildingId: string, accessToken: string): Promise<QualityMetrics> {
@@ -82,12 +101,21 @@ export async function fetchQualityMetrics(buildingId: string, accessToken: strin
 }
 export async function sendInspectionEmail(input: { recipient: string; result: InspectionResult; accessToken: string; template?: { uri: string; name: string; mimeType?: string } }) {
   const form = new FormData(); form.append('recipient', input.recipient); form.append('result', JSON.stringify(input.result));
-  if (input.result.mediaUri && input.result.mediaType) form.append('attachments', { uri: input.result.mediaUri, name: `inspection-${input.result.equipmentId}.jpg`, type: 'image/jpeg' } as never);
-  if (input.template) form.append('attachments', { uri: input.template.uri, name: input.template.name, type: input.template.mimeType || 'application/octet-stream' } as never);
+  if (input.result.mediaUri && input.result.mediaType) {
+    const part = await blobPart(input.result.mediaUri);
+    form.append('attachments', part.blob, `inspection-${input.result.equipmentId}.${part.extension}`);
+  }
+  if (input.template) {
+    const part = await blobPart(input.template.uri, input.template.mimeType || 'application/octet-stream');
+    form.append('attachments', part.blob, input.template.name);
+  }
   return bodyOf(await fetch(`${API_URL}/api/reports/send`, { method: 'POST', headers: bearer(input.accessToken), body: form }));
 }
 export async function sendBuildingReportEmail(input: { recipient: string; buildingId: string; accessToken: string; template?: { uri: string; name: string; mimeType?: string } }) {
   const form = new FormData(); form.append('recipient', input.recipient); form.append('buildingId', input.buildingId);
-  if (input.template) form.append('attachments', { uri: input.template.uri, name: input.template.name, type: input.template.mimeType || 'application/octet-stream' } as never);
+  if (input.template) {
+    const part = await blobPart(input.template.uri, input.template.mimeType || 'application/octet-stream');
+    form.append('attachments', part.blob, input.template.name);
+  }
   return bodyOf(await fetch(`${API_URL}/api/reports/building/send`, { method: 'POST', headers: bearer(input.accessToken), body: form }));
 }

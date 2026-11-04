@@ -1,5 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
-import { unlink } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { readFile, unlink } from 'node:fs/promises';
 import { OfficialChecklist } from './checklists.js';
 import { getChecklistMaster } from './database.js';
 
@@ -42,6 +43,7 @@ export type Analysis = Omit<ModelAnalysis, 'checklist'> & {
   qualityThresholds: { equipmentMatch: number; itemJudgement: number; evidenceRequired: true };
   checklist: Array<OfficialChecklist['items'][number] & { status: Status; reason: string; confidence: number; evidenceRegions: EvidenceRegion[] }>;
   demo?: boolean;
+  cached?: boolean;
 };
 
 const responseJsonSchema = {
@@ -108,6 +110,10 @@ const assistanceNotice = '이 결과는 사진 기반 점검 보조 정보이며
 
 const noticeFor = (checklist: OfficialChecklist) => checklist.assistanceNotice || assistanceNotice;
 
+// Academic-demo cache: only exact same image + equipment + model is reused.
+// It is process-local and never replaces a new photo's analysis.
+const analysisCache = new Map<string, Analysis>();
+
 function isTemporaryGeminiError(error: unknown) {
   const text = error instanceof Error ? error.message : JSON.stringify(error);
   return /503|UNAVAILABLE|high demand|temporarily|try again later/i.test(text);
@@ -129,7 +135,7 @@ async function retryTemporary<T>(task: () => Promise<T>) {
     return await task();
   } catch (error) {
     if (!isTemporaryGeminiError(error)) throw error;
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => setTimeout(resolve, 800));
     return task();
   }
 }
@@ -198,6 +204,10 @@ export function mergeWithOfficialChecklist(parsed: ModelAnalysis, official: Offi
 
 export async function analyzeMedia(filePath: string, mimeType: string, equipmentType: string): Promise<Analysis> {
   const official = await getChecklistMaster(equipmentType);
+  const imageHash = createHash('sha256').update(await readFile(filePath)).digest('hex');
+  const cacheKey = `${imageHash}:${equipmentType}:${official.legalBasis.versionLabel}:${process.env.GEMINI_MODEL || 'gemini-3.7-flash'}`;
+  const cached = analysisCache.get(cacheKey);
+  if (cached) return { ...cached, cached: true };
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     await unlink(filePath).catch(() => undefined);
@@ -212,7 +222,8 @@ export async function analyzeMedia(filePath: string, mimeType: string, equipment
     let file = uploaded;
     while (file.state && String(file.state) !== 'ACTIVE') {
       if (String(file.state) === 'FAILED') throw new Error('Gemini 미디어 처리에 실패했습니다.');
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+      // Poll more frequently so small photos do not incur an unnecessary 3s delay.
+      await new Promise((resolve) => setTimeout(resolve, 800));
       file = await ai.files.get({ name: uploaded.name });
     }
 
@@ -229,7 +240,9 @@ export async function analyzeMedia(filePath: string, mimeType: string, equipment
     const raw = response.text ?? '';
     const json = raw.match(/\{[\s\S]*\}/)?.[0];
     if (!json) throw new Error('Gemini JSON 응답을 찾을 수 없습니다.');
-    return mergeWithOfficialChecklist(JSON.parse(json) as ModelAnalysis, official);
+    const result = mergeWithOfficialChecklist(JSON.parse(json) as ModelAnalysis, official);
+    analysisCache.set(cacheKey, result);
+    return result;
   } catch (error) {
     throw toGeminiUserError(error);
   } finally {

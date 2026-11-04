@@ -125,6 +125,37 @@ npm run dev
 curl http://localhost:4000/health
 ```
 
+## Docker로 서버와 PostgreSQL 실행
+
+Docker Desktop을 실행한 뒤 프로젝트 루트에서 실행합니다. Expo 모바일 앱은 기존처럼 맥에서 실행하고, API 서버와 PostgreSQL만 Docker에서 실행합니다.
+
+```bash
+docker compose up -d --build
+curl http://localhost:4000/health
+```
+
+Docker 환경변수는 프로젝트 루트의 `.env`에 입력합니다. 실제 휴대폰에서 접속할 때는 `EXPO_PUBLIC_API_URL`을 맥의 같은 Wi-Fi 내부 IP로 설정합니다.
+
+```dotenv
+POSTGRES_DB=fire_care
+POSTGRES_USER=firecare
+POSTGRES_PASSWORD=긴_로컬_DB_비밀번호
+JWT_SECRET=긴_랜덤_문자열
+GEMINI_API_KEY=발급받은_API_KEY
+GMAIL_USER=발신용_Gmail주소
+GMAIL_APP_PASSWORD=16자리_앱_비밀번호
+```
+
+상태 확인과 종료 명령은 다음과 같습니다.
+
+```bash
+docker compose ps
+docker compose logs -f api
+docker compose down
+```
+
+DB와 사진까지 삭제하려면 `docker compose down -v`를 사용합니다. 이 명령은 저장된 Docker 데이터를 삭제하므로 주의해야 합니다.
+
 ## 3. 로컬 PostgreSQL 데이터베이스 설정
 
 PostgreSQL이 없다면 먼저 설치합니다.

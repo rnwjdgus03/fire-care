@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { supportedEquipmentNames } from '../data';
 import { analyzeInspectionMedia, AnalysisResponse, ChecklistResponse, createWorker, fetchChecklist, fetchQualityMetrics, QualityMetrics, submitInspection } from '../services/api';
 import { colors } from '../theme';
@@ -227,8 +228,17 @@ export function InspectionScreen({ session, selected, navigate, onComplete, acce
       .finally(() => setLoadingChecklist(false));
   }, [accessToken, selected.id, selected.name]);
 
-  const applyPhoto = (uri: string, width?: number, height?: number) => {
-    setMedia({ uri, type: 'image', aspectRatio: width && height ? width / height : 1 });
+  const applyPhoto = async (uri: string, width?: number, height?: number) => {
+    // Keep enough detail for visual inspection while avoiding multi-megabyte uploads.
+    const sourceWidth = width || 1600;
+    const sourceHeight = height || 1600;
+    const scale = Math.min(1, 1600 / Math.max(sourceWidth, sourceHeight));
+    const resized = await ImageManipulator.manipulateAsync(
+      uri,
+      scale < 1 ? [{ resize: { width: Math.round(sourceWidth * scale), height: Math.round(sourceHeight * scale) } }] : [],
+      { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG },
+    );
+    setMedia({ uri: resized.uri, type: 'image', aspectRatio: resized.width / resized.height });
     setAnalysis(undefined);
     setAnalysisError('');
     if (checklist) {
@@ -243,14 +253,20 @@ export function InspectionScreen({ session, selected, navigate, onComplete, acce
     const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (!permission.granted) return Alert.alert('권한 필요', '사진을 선택하려면 사진 보관함 접근 권한이 필요합니다.');
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
-    if (!result.canceled) applyPhoto(result.assets[0].uri, result.assets[0].width, result.assets[0].height);
+    if (!result.canceled) {
+      try { await applyPhoto(result.assets[0].uri, result.assets[0].width, result.assets[0].height); }
+      catch { Alert.alert('사진 처리 실패', '사진을 읽지 못했습니다. 다른 사진을 선택해주세요.'); }
+    }
   };
 
   const takePhoto = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) return Alert.alert('권한 필요', '인증사진을 촬영하려면 카메라 권한이 필요합니다.');
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ['images'], quality: 0.8 });
-    if (!result.canceled) applyPhoto(result.assets[0].uri, result.assets[0].width, result.assets[0].height);
+    if (!result.canceled) {
+      try { await applyPhoto(result.assets[0].uri, result.assets[0].width, result.assets[0].height); }
+      catch { Alert.alert('사진 처리 실패', '사진을 읽지 못했습니다. 다시 촬영해주세요.'); }
+    }
   };
 
   const runAnalysis = async () => {
@@ -362,7 +378,7 @@ export function InspectionScreen({ session, selected, navigate, onComplete, acce
         {analysisError ? <View style={styles.retryBox}><Text style={styles.retryTitle}>Gemini 분석을 완료하지 못했습니다</Text><Text style={styles.retryBody}>{analysisError}</Text><View style={{ marginTop: 10 }}><Button label="같은 사진으로 다시 시도" onPress={runAnalysis} variant="secondary" disabled={busy || !media} /></View><Text style={styles.retryHint}>서버 혼잡 오류는 잠시 후 재시도하면 해결되는 경우가 많습니다. 어둡거나 먼 사진이면 다시 촬영해주세요.</Text></View> : null}
         {analysis && media ? <View style={{ marginTop: 14 }}><Text style={styles.analysisTitle}>AI 판정 근거 영역</Text><View style={[styles.evidenceImageWrap, { aspectRatio: media.aspectRatio }]}><Image source={{ uri: media.uri }} resizeMode="contain" style={StyleSheet.absoluteFill} />{items.flatMap((item) => item.evidenceRegions.map((region, index) => <View key={`${item.id}-${index}`} style={[styles.evidenceBox, { left: `${region.x / 10}%`, top: `${region.y / 10}%`, width: `${region.width / 10}%`, height: `${region.height / 10}%` }]}><Text style={styles.evidenceLabel}>{item.sourceItemId}</Text></View>))}</View><Text style={styles.evidenceHint}>사각형은 Gemini가 정상·이상 판정에 사용한 사진 속 근거 위치입니다.</Text></View> : null}
         {analysis ? <View style={[styles.qualityBox, !analysis.photoQuality.acceptable && styles.qualityRejected]}><View style={styles.analysisHeader}><Text style={styles.analysisTitle}>사진 품질 검사</Text><Pill label={analysis.photoQuality.acceptable ? '분석 가능' : '재촬영 필요'} tone={analysis.photoQuality.acceptable ? 'success' : 'danger'} /></View><Text style={styles.checkReason}>밝기 {analysis.photoQuality.brightness} · 선명도 {analysis.photoQuality.sharpness} · 촬영거리/구도 {analysis.photoQuality.coverage}</Text>{analysis.photoQuality.issues.map((issue) => <Text key={issue} style={styles.issue}>• {issue}</Text>)}{!analysis.photoQuality.acceptable ? <Text style={styles.reviewHint}>{analysis.photoQuality.retakeGuidance}</Text> : null}</View> : null}
-        {analysis ? <View style={[styles.analysisBox, !analysis.equipmentMatch && styles.mismatchBox]}><View style={styles.analysisHeader}><Text style={styles.analysisTitle}>설비 식별·AI 보조 결과</Text><Pill label={analysis.equipmentMatch ? '설비 일치' : '설비 확인 필요'} tone={analysis.equipmentMatch ? 'success' : 'danger'} /></View><Text style={styles.legalMeta}>선택: {selected.name} · 사진: {analysis.detectedEquipmentType} · 일치 신뢰도 {Math.round(analysis.matchConfidence * 100)}% (기준 {Math.round(analysis.qualityThresholds.equipmentMatch * 100)}%)</Text><Text style={ui.body}>{analysis.equipmentMatch ? analysis.summary : analysis.mismatchReason}</Text>{analysis.classificationNotice ? <Text style={styles.noticeText}>{analysis.classificationNotice}</Text> : null}{analysis.detectedIssues.map((item) => <Text key={item} style={styles.issue}>• {item}</Text>)}<Text style={styles.legalMeta}>{analysis.legalBasis.form}{'\n'}{analysis.legalBasis.versionLabel}{'\n'}원문 확인일 {analysis.legalBasis.verifiedAt}</Text><Text style={styles.noticeText}>{analysis.assistanceNotice}</Text>{analysis.demo ? <Text style={styles.demoText}>Gemini API 키가 없어 자동 판정하지 않았습니다.</Text> : null}</View> : null}
+        {analysis ? <View style={[styles.analysisBox, !analysis.equipmentMatch && styles.mismatchBox]}><View style={styles.analysisHeader}><Text style={styles.analysisTitle}>설비 식별·AI 보조 결과</Text><Pill label={analysis.equipmentMatch ? '설비 일치' : '설비 확인 필요'} tone={analysis.equipmentMatch ? 'success' : 'danger'} /></View><Text style={styles.legalMeta}>선택: {selected.name} · 사진: {analysis.detectedEquipmentType} · 일치 신뢰도 {Math.round(analysis.matchConfidence * 100)}% (기준 {Math.round(analysis.qualityThresholds.equipmentMatch * 100)}%)</Text><Text style={ui.body}>{analysis.equipmentMatch ? analysis.summary : analysis.mismatchReason}</Text>{analysis.classificationNotice ? <Text style={styles.noticeText}>{analysis.classificationNotice}</Text> : null}{analysis.detectedIssues.map((item) => <Text key={item} style={styles.issue}>• {item}</Text>)}<Text style={styles.legalMeta}>{analysis.legalBasis.form}{'\n'}{analysis.legalBasis.versionLabel}{'\n'}원문 확인일 {analysis.legalBasis.verifiedAt}</Text><Text style={styles.noticeText}>{analysis.assistanceNotice}</Text>{analysis.demo ? <Text style={styles.demoText}>Gemini API 키가 없어 자동 판정하지 않았습니다.</Text> : null}{analysis.cached ? <Text style={styles.demoText}>시연용 캐시 결과입니다. 동일 사진·설비·기준 버전의 이전 분석을 재사용했습니다.</Text> : null}</View> : null}
       </Card>
       <View style={ui.gap} />
       {selected.name === '에어컨' ? <><Card><Text style={ui.sectionTitle}>현장 측정값</Text><Text style={styles.helperText}>아래 값은 사진으로 판정하지 않습니다. 계측기로 직접 측정하고, 제조사 유지관리지침서의 정상범위와 비교해주세요.</Text>{airConditionerMeasurements.map((entry) => <Field key={entry.id} label={`${entry.label} (${entry.unit})`} value={measurementValues[entry.id] ?? ''} onChangeText={(value) => setMeasurementValues((prev) => ({ ...prev, [entry.id]: value }))} placeholder={entry.requiredMethod} keyboardType="decimal-pad" />)}</Card><View style={ui.gap} /></> : null}

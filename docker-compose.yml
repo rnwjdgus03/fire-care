@@ -1,0 +1,46 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: fire-care-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fire_care}
+      POSTGRES_USER: ${POSTGRES_USER:-firecare}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-firecare-local-password}
+    ports:
+      - "5433:5432"
+    volumes:
+      - fire-care-postgres:/var/lib/postgresql/data
+      - ./server/sql/local_postgres_schema.sql:/docker-entrypoint-initdb.d/001-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-firecare} -d ${POSTGRES_DB:-fire_care}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./server
+    container_name: fire-care-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-firecare}:${POSTGRES_PASSWORD:-firecare-local-password}@db:5432/${POSTGRES_DB:-fire_care}
+      JWT_SECRET: ${JWT_SECRET:-fire-care-docker-change-this-secret}
+      LOCAL_UPLOAD_DIR: /app/uploads/inspection-photos
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.7-flash}
+      GMAIL_USER: ${GMAIL_USER:-}
+      GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
+      MAIL_SENDER_NAME: ${MAIL_SENDER_NAME:-FIRE CARE}
+    volumes:
+      - fire-care-uploads:/app/uploads/inspection-photos
+
+volumes:
+  fire-care-postgres:
+  fire-care-uploads:
