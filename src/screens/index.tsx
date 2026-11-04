@@ -23,11 +23,13 @@ export function LoginScreen({ onLogin, navigate }: { onLogin: (email: string, pa
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const login = async () => {
-    if (!email.trim() || !password) return Alert.alert('입력 확인', '이메일과 비밀번호를 입력해주세요.');
+    if (!email.trim() || !password) { setErrorMessage('이메일과 비밀번호를 입력해주세요.'); return; }
+    setErrorMessage('');
     setBusy(true);
     try { await onLogin(email, password); }
-    catch (error) { Alert.alert('로그인 실패', error instanceof Error ? error.message : '서버 연결을 확인해주세요.'); }
+    catch (error) { const message = error instanceof Error ? error.message : '서버 연결을 확인해주세요.'; setErrorMessage(message); Alert.alert('로그인 실패', message); }
     finally { setBusy(false); }
   };
 
@@ -43,6 +45,7 @@ export function LoginScreen({ onLogin, navigate }: { onLogin: (email: string, pa
         <Text style={[ui.body, { marginBottom: 18 }]}>서버에 등록된 계정으로 로그인합니다. 역할은 서버의 권한으로 결정됩니다.</Text>
         <Field label="이메일" value={email} onChangeText={setEmail} placeholder="name@company.com" keyboardType="email-address" />
         <Field label="비밀번호" value={password} onChangeText={setPassword} placeholder="비밀번호" secureTextEntry />
+        {errorMessage ? <Text style={styles.authError}>{errorMessage}</Text> : null}
         <Button label={busy ? '로그인 중...' : '로그인'} onPress={login} disabled={busy} />
         <Pressable onPress={() => navigate('register')} style={styles.linkButton}>
           <Text style={styles.linkMuted}>처음 방문하셨나요?</Text><Text style={styles.link}> 회원가입</Text>
@@ -55,13 +58,16 @@ export function LoginScreen({ onLogin, navigate }: { onLogin: (email: string, pa
 export function RegisterScreen({ navigate, onRegister }: { navigate: Nav; onRegister: (input: RegistrationInput) => Promise<void> }) {
   const [form, setForm] = useState<RegistrationInput>({ name: '', organization: '', email: '', phone: '', building: '', password: '' });
   const [busy, setBusy] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const update = (key: keyof typeof form) => (value: string) => setForm((prev) => ({ ...prev, [key]: value }));
   const register = async () => {
-    if (!form.name.trim() || !form.organization.trim() || !form.building.trim() || !form.email.trim() || form.password.length < 8) return Alert.alert('필수 정보 확인', '이름·회사·건물·이메일과 8자 이상 비밀번호를 입력해주세요.');
+    if (!form.name.trim() || !form.organization.trim() || !form.building.trim() || !form.email.trim() || form.password.length < 8) { setErrorMessage('이름·회사·건물·이메일과 8자 이상 비밀번호를 입력해주세요.'); return; }
+    setErrorMessage('');
     setBusy(true);
     try { await onRegister(form); }
     catch (error) {
       const message = error instanceof Error ? error.message : '서버 DB 설정을 확인해주세요.';
+      setErrorMessage(message);
       Alert.alert('회원가입 실패', message, message.includes('이미 가입된 이메일') ? [{ text: '닫기' }, { text: '로그인으로 이동', onPress: () => navigate('login') }] : [{ text: '확인' }]);
     }
     finally { setBusy(false); }
@@ -77,6 +83,7 @@ export function RegisterScreen({ navigate, onRegister }: { navigate: Nav; onRegi
         <Field label="전화번호" value={form.phone} onChangeText={update('phone')} placeholder="010-0000-0000" keyboardType="phone-pad" />
         <Field label="건물 이름" value={form.building} onChangeText={update('building')} placeholder="건물 이름을 입력해주세요" />
         <Text style={styles.helperText}>가입 후 설비 리스트에서 실제 층/구역과 설비를 직접 등록할 수 있습니다.</Text>
+        {errorMessage ? <Text style={styles.authError}>{errorMessage}</Text> : null}
         <Button label={busy ? '계정 생성 중...' : '가입 완료'} onPress={register} disabled={busy} />
       </Card>
     </Screen>
@@ -474,6 +481,7 @@ export function ProfileScreen({ session, navigate, onSave }: { session: AppSessi
 }
 
 const styles = StyleSheet.create({
+  authError: { color: '#B42318', backgroundColor: '#FFF1F0', borderColor: '#F3B4AE', borderRadius: 10, borderWidth: 1, fontSize: 13, lineHeight: 19, marginBottom: 14, paddingHorizontal: 12, paddingVertical: 10 },
   loginHero: { alignItems: 'center', marginBottom: 26, marginTop: 18 },
   logo: { alignItems: 'center', backgroundColor: colors.primary, borderRadius: 18, height: 58, justifyContent: 'center', marginBottom: 12, width: 58 },
   logoText: { color: '#FFF', fontSize: 29, fontWeight: '900' },
