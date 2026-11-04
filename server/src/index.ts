@@ -22,7 +22,10 @@ const upload = multer({ dest: uploadDir, limits: { fileSize: 10 * 1024 * 1024 },
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
-const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 10, standardHeaders: 'draft-8', legacyHeaders: false, message: { message: '로그인 요청이 너무 많습니다. 15분 후 다시 시도해주세요.' } });
+// Keep a reasonable guard against abuse while allowing repeated academic-demo attempts.
+// Registration and login share this limiter, so the previous limit of 10 could lock
+// out an entire demo session after a few retries from the same network.
+const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, limit: 100, standardHeaders: 'draft-8', legacyHeaders: false, message: { message: '로그인 요청이 너무 많습니다. 15분 후 다시 시도해주세요.' } });
 
 app.get('/health', (_request, response) => response.json({
   ok: true, databaseConfigured, authConfigured: databaseConfigured,
