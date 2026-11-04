@@ -238,3 +238,28 @@ npm --prefix server run eval:vision -- "/평가사진/절대경로"
 - `server/src/index.ts`: REST API
 - `server/src/database.ts`: 로컬 PostgreSQL 영구 저장, JWT 인증, 사진 경로 저장, 동기화
 - `server/sql/local_postgres_schema.sql`: 사용자·회사·건물·층·설비·점검표 마스터·점검·사진 스키마
+
+## 브라우저 배포 구조
+
+학술제 시연 배포 구조는 다음과 같습니다.
+
+```text
+휴대폰 브라우저 → Vercel 웹앱 → Render API → Supabase PostgreSQL → Gemini API
+```
+
+웹앱 빌드:
+
+```bash
+EXPO_PUBLIC_API_URL=https://<render-api-url> npm run web:build
+```
+
+Vercel 프로젝트 환경변수에 `EXPO_PUBLIC_API_URL`을 Render API 주소로 설정하면 `vercel.json`에 따라 `dist`가 배포됩니다.
+
+Render는 `render.yaml` Blueprint로 배포하고, 다음 비밀 환경변수는 대시보드에 직접 입력합니다.
+
+- `DATABASE_URL`: Supabase PostgreSQL 연결 문자열
+- `JWT_SECRET`: 긴 랜덤 문자열
+- `GEMINI_API_KEY`: Gemini API 키
+- `GMAIL_USER`, `GMAIL_APP_PASSWORD`: 선택적 메일 설정
+
+API 배포 후 `https://<render-api-url>/health`가 정상 응답하는지 확인하고, 그 주소를 Vercel의 `EXPO_PUBLIC_API_URL`로 사용합니다.
