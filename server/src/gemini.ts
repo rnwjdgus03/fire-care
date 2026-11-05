@@ -267,6 +267,7 @@ export async function analyzeMedia(filePath: string, mimeType: string, equipment
     if (error instanceof Error && error.message === 'GEMINI_ANALYSIS_TIMEOUT') {
       throw new Error('분석 시간 초과: Gemini 응답이 40초 안에 도착하지 않았습니다. 같은 사진으로 다시 시도해주세요.');
     }
+    console.error('Gemini raw analysis error:', error);
     throw toGeminiUserError(error);
   } finally {
     await unlink(filePath).catch(() => undefined);
