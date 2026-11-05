@@ -132,6 +132,9 @@ function toGeminiUserError(error: unknown) {
     return new Error('Gemini 서버가 현재 혼잡합니다. 잠시 후 다시 시도해주세요.');
   }
   const text = error instanceof Error ? error.message : String(error);
+  if (/429|RESOURCE_EXHAUSTED|quota exceeded|limit exceeded|free.?tier/i.test(text)) {
+    return new Error('Gemini 무료 API 일일 한도를 초과했습니다. 다른 Gemini 프로젝트의 키로 교체하거나 결제를 활성화한 뒤 다시 시도해주세요.');
+  }
   if (/API key|permission|PERMISSION_DENIED|UNAUTHENTICATED/i.test(text)) {
     return new Error('Gemini API 키 또는 권한 설정을 확인해주세요.');
   }
