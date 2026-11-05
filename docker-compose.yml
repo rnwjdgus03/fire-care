@@ -34,7 +34,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:-fire-care-docker-change-this-secret}
       LOCAL_UPLOAD_DIR: /app/uploads/inspection-photos
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.7-flash}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-flash}
       GMAIL_USER: ${GMAIL_USER:-}
       GMAIL_APP_PASSWORD: ${GMAIL_APP_PASSWORD:-}
       MAIL_SENDER_NAME: ${MAIL_SENDER_NAME:-FIRE CARE}

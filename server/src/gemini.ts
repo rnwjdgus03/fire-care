@@ -106,6 +106,11 @@ const responseJsonSchema = {
 const EQUIPMENT_MATCH_THRESHOLD = 0.7;
 const ITEM_JUDGEMENT_THRESHOLD = 0.75;
 const GEMINI_TIMEOUT_MS = 40_000;
+// Use the broadly available stable vision model. Older Render environments
+// may still carry the demo-only 3.7 value, which can surface as a misleading 503.
+const geminiModel = process.env.GEMINI_MODEL === 'gemini-3.7-flash' || !process.env.GEMINI_MODEL
+  ? 'gemini-2.5-flash'
+  : process.env.GEMINI_MODEL;
 
 const assistanceNotice = '이 결과는 사진 기반 점검 보조 정보이며 법정 자체점검의 완료 또는 적합 판정을 의미하지 않습니다. 자격과 권한을 갖춘 점검자가 현장에서 최종 확인해야 합니다.';
 
@@ -224,7 +229,7 @@ export function mergeWithOfficialChecklist(parsed: ModelAnalysis, official: Offi
 export async function analyzeMedia(filePath: string, mimeType: string, equipmentType: string): Promise<Analysis> {
   const official = await getChecklistMaster(equipmentType);
   const imageHash = createHash('sha256').update(await readFile(filePath)).digest('hex');
-  const cacheKey = `${imageHash}:${equipmentType}:${official.legalBasis.versionLabel}:${process.env.GEMINI_MODEL || 'gemini-3.7-flash'}`;
+  const cacheKey = `${imageHash}:${equipmentType}:${official.legalBasis.versionLabel}:${geminiModel}`;
   const cached = analysisCache.get(cacheKey);
   if (cached) return { ...cached, cached: true };
   const persisted = await getAnalysisCache<Analysis>(cacheKey).catch(() => undefined);
@@ -243,7 +248,7 @@ export async function analyzeMedia(filePath: string, mimeType: string, equipment
     const imageBase64 = (await readFile(filePath)).toString('base64');
     const officialItems = official.items.map(({ id, sourceItemId, label, verificationMode }) => ({ id, sourceItemId, label, verificationMode }));
     const response = await withTimeout(retryTemporary(() => ai.models.generateContent({
-      model: process.env.GEMINI_MODEL || 'gemini-3.7-flash',
+      model: geminiModel,
       contents: [
         { inlineData: { data: imageBase64, mimeType } },
         { text: `당신은 시설설비 사진 판정 보조 시스템입니다. 사용자가 선택한 설비는 "${equipmentType}"이고 공식 분류는 "${official.officialEquipmentType}"입니다. 식별 단서는 ${official.detectionHints.join(', ')}입니다. 먼저 사진 품질을 평가하세요. 너무 어둡거나 밝음, 초점 흐림, 설비가 너무 멀거나 핵심 부위가 잘린 사진은 photoQuality.acceptable=false로 하고 모든 항목을 확인 불가로 반환하세요. 그 다음 사진의 주된 설비를 식별하고 선택 설비와 일치하는지 판정하세요. 다른 설비이거나 사진이 불충분하면 equipmentMatch=false로 하세요. 다음 officialItems는 서버가 제공한 공식 체크리스트이며 항목을 추가·삭제·변경하면 안 됩니다. 모든 id를 정확히 한 번씩 반환하세요. verificationMode가 MANUAL인 항목은 사진 내용과 관계없이 반드시 status="확인 불가", confidence=0, evidenceRegions=[]로 반환하세요. PHOTO 항목도 사진에 명확한 시각 근거가 있을 때만 정상 또는 이상으로 판정하고, 수치 측정·작동시험·내부 상태·사진 밖 위치가 필요한 경우 확인 불가로 판정하세요. 정상 또는 이상 판정에는 판단 근거가 보이는 사각형을 0~1000 정규화 좌표 evidenceRegions로 반드시 반환하세요. 사각형은 이미지 경계 안에 있어야 합니다. 법정 점검 완료나 적합 판정을 선언하지 마세요. officialItems=${JSON.stringify(officialItems)}` },

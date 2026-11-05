@@ -198,7 +198,7 @@ curl http://localhost:4000/health
 
 ```dotenv
 GEMINI_API_KEY=발급받은_API_KEY
-GEMINI_MODEL=gemini-3.7-flash
+GEMINI_MODEL=gemini-2.5-flash
 ```
 
 키는 모바일 앱에 넣지 않습니다. 앱이 선택 설비명과 사진을 서버에 전달하면 서버가 공식 체크리스트를 선택하고 Gemini Files API로 사진을 분석합니다. Gemini는 설비 일치 확인과 사진 판정만 담당합니다.
