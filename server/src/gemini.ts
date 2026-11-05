@@ -131,13 +131,17 @@ function toGeminiUserError(error: unknown) {
 }
 
 async function retryTemporary<T>(task: () => Promise<T>) {
-  try {
-    return await task();
-  } catch (error) {
-    if (!isTemporaryGeminiError(error)) throw error;
-    await new Promise((resolve) => setTimeout(resolve, 800));
-    return task();
+  let lastError: unknown;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+      if (!isTemporaryGeminiError(error) || attempt === 2) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1000 * (attempt + 1)));
+    }
   }
+  throw lastError;
 }
 
 function manualResult(checklist: OfficialChecklist, reason: string, demo = false): Analysis {
