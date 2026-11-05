@@ -106,11 +106,13 @@ const responseJsonSchema = {
 const EQUIPMENT_MATCH_THRESHOLD = 0.7;
 const ITEM_JUDGEMENT_THRESHOLD = 0.75;
 const GEMINI_TIMEOUT_MS = 40_000;
-// Use the broadly available stable vision model. Older Render environments
-// may still carry the demo-only 3.7 value, which can surface as a misleading 503.
-const geminiModel = process.env.GEMINI_MODEL === 'gemini-3.7-flash' || !process.env.GEMINI_MODEL
-  ? 'gemini-2.5-flash'
-  : process.env.GEMINI_MODEL;
+// Gemini's currently available vision model. Older deployments may still have
+// a retired model name in their environment, so normalize it here as well as
+// in Render's environment settings.
+const configuredGeminiModel = process.env.GEMINI_MODEL?.trim();
+const geminiModel = !configuredGeminiModel || /gemini-(2\.5|3\.7)-flash/i.test(configuredGeminiModel)
+  ? 'gemini-3.8-flash'
+  : configuredGeminiModel;
 
 const assistanceNotice = '이 결과는 사진 기반 점검 보조 정보이며 법정 자체점검의 완료 또는 적합 판정을 의미하지 않습니다. 자격과 권한을 갖춘 점검자가 현장에서 최종 확인해야 합니다.';
 
