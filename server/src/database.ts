@@ -57,6 +57,30 @@ export class AuthenticationError extends Error {}
 export class AuthorizationError extends Error {}
 export class ConflictError extends Error {}
 
+let analysisCacheReady: Promise<void> | undefined;
+async function ensureAnalysisCacheTable() {
+  if (!analysisCacheReady) {
+    analysisCacheReady = db().query(`create table if not exists analysis_cache (
+      cache_key text primary key,
+      result jsonb not null,
+      created_at timestamptz not null default now()
+    )`).then(() => undefined);
+  }
+  return analysisCacheReady;
+}
+
+export async function getAnalysisCache<T>(cacheKey: string): Promise<T | undefined> {
+  await ensureAnalysisCacheTable();
+  const result = await db().query('select result from analysis_cache where cache_key = $1', [cacheKey]);
+  return result.rows[0]?.result as T | undefined;
+}
+
+export async function saveAnalysisCache(cacheKey: string, result: unknown) {
+  await ensureAnalysisCacheTable();
+  await db().query(`insert into analysis_cache (cache_key, result) values ($1, $2::jsonb)
+    on conflict (cache_key) do update set result = excluded.result, created_at = now()`, [cacheKey, JSON.stringify(result)]);
+}
+
 const databaseUrl = process.env.DATABASE_URL;
 const jwtSecret = process.env.JWT_SECRET;
 export const databaseConfigured = Boolean(databaseUrl && jwtSecret);
