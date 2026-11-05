@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { ActivityIndicator, View } from 'react-native';
+import { ActivityIndicator, Platform, View } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import {
   AdminScreen, AnomalyDetailScreen, AnomalyListScreen, EquipmentScreen, HomeScreen,
@@ -15,6 +15,20 @@ import {
 const TOKEN_KEY = 'fire-care-auth-v2';
 const emptySession: AppSession = { userId: '', organizationId: '', buildingId: '', role: '작업자', name: '', organization: '', company: '', email: '' };
 
+const readToken = async () => Platform.OS === 'web'
+  ? window.localStorage.getItem(TOKEN_KEY)
+  : SecureStore.getItemAsync(TOKEN_KEY);
+
+const writeToken = async (value?: string) => {
+  if (Platform.OS === 'web') {
+    if (value) window.localStorage.setItem(TOKEN_KEY, value);
+    else window.localStorage.removeItem(TOKEN_KEY);
+    return;
+  }
+  if (value) await SecureStore.setItemAsync(TOKEN_KEY, value);
+  else await SecureStore.deleteItemAsync(TOKEN_KEY);
+};
+
 export default function App() {
   const [screen, setScreen] = useState<ScreenName>('login');
   const [session, setSession] = useState<AppSession>(emptySession);
@@ -27,8 +41,7 @@ export default function App() {
 
   const persistTokens = async (next?: AuthTokens) => {
     setTokens(next);
-    if (next) await SecureStore.setItemAsync(TOKEN_KEY, JSON.stringify(next));
-    else await SecureStore.deleteItemAsync(TOKEN_KEY);
+    await writeToken(next ? JSON.stringify(next) : undefined);
   };
 
   const applyAuthenticated = async (auth: AuthResponse) => {
@@ -54,7 +67,7 @@ export default function App() {
   useEffect(() => {
     void (async () => {
       try {
-        const saved = await SecureStore.getItemAsync(TOKEN_KEY);
+        const saved = await readToken();
         if (!saved) return;
         const stored = JSON.parse(saved) as AuthTokens;
         setSyncState('동기화 중');
