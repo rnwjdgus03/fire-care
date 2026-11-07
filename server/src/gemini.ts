@@ -106,13 +106,11 @@ const responseJsonSchema = {
 const EQUIPMENT_MATCH_THRESHOLD = 0.7;
 const ITEM_JUDGEMENT_THRESHOLD = 0.75;
 const GEMINI_TIMEOUT_MS = 40_000;
-// Gemini's currently available vision model. Older deployments may still have
-// a retired model name in their environment, so normalize it here as well as
-// in Render's environment settings.
-const configuredGeminiModel = process.env.GEMINI_MODEL?.trim();
-const geminiModel = !configuredGeminiModel || /gemini-(2\.5|3\.7)-flash/i.test(configuredGeminiModel)
-  ? 'gemini-3.8-flash'
-  : configuredGeminiModel;
+// Use the lighter multimodal model for the academic demo. It is faster and
+// less prone to the temporary high-demand errors seen on the flagship model.
+// Keep the environment variable for documentation/backward compatibility, but
+// normalize legacy and flagship values to the selected fallback model.
+const geminiModel = 'gemini-3.5-flash-lite';
 
 const assistanceNotice = '이 결과는 사진 기반 점검 보조 정보이며 법정 자체점검의 완료 또는 적합 판정을 의미하지 않습니다. 자격과 권한을 갖춘 점검자가 현장에서 최종 확인해야 합니다.';
 
