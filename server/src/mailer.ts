@@ -19,8 +19,11 @@ export async function sendInspectionMail(input: {
 }) {
   const { user, appPassword } = gmailCredentials();
   const transporter = nodemailer.createTransport({
-    service: 'gmail',
+    host: 'smtp.gmail.com',
+    port: 587,
+    secure: false,
     auth: { user, pass: appPassword },
+    requireTLS: true,
     // Do not leave the mobile UI stuck forever when Render/Gmail is slow.
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
