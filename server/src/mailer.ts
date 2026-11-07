@@ -21,6 +21,10 @@ export async function sendInspectionMail(input: {
   const transporter = nodemailer.createTransport({
     service: 'gmail',
     auth: { user, pass: appPassword },
+    // Do not leave the mobile UI stuck forever when Render/Gmail is slow.
+    connectionTimeout: 10_000,
+    greetingTimeout: 10_000,
+    socketTimeout: 15_000,
   });
   return transporter.sendMail({
     from: `"${process.env.MAIL_SENDER_NAME || 'FIRE CARE'}" <${user}>`,
