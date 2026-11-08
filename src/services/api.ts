@@ -41,6 +41,16 @@ async function bodyOf(response: Response) {
   return body;
 }
 const bearer = (accessToken: string) => ({ Authorization: `Bearer ${accessToken}` });
+async function reportRequest(url: string, init: RequestInit) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 25_000);
+  try {
+    return await bodyOf(await fetch(url, { ...init, signal: controller.signal }));
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw new Error('메일 전송 시간이 초과되었습니다. 잠시 후 다시 시도해주세요.');
+    throw error;
+  } finally { clearTimeout(timer); }
+}
 
 export async function registerAccount(input: RegistrationInput): Promise<AuthResponse> {
   return bodyOf(await fetch(`${API_URL}/api/auth/register`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(input) }));
@@ -109,7 +119,7 @@ export async function sendInspectionEmail(input: { recipient: string; result: In
     const part = await blobPart(input.template.uri, input.template.mimeType || 'application/octet-stream');
     form.append('attachments', part.blob, input.template.name);
   }
-  return bodyOf(await fetch(`${API_URL}/api/reports/send`, { method: 'POST', headers: bearer(input.accessToken), body: form }));
+  return reportRequest(`${API_URL}/api/reports/send`, { method: 'POST', headers: bearer(input.accessToken), body: form });
 }
 export async function sendBuildingReportEmail(input: { recipient: string; buildingId: string; accessToken: string; template?: { uri: string; name: string; mimeType?: string } }) {
   const form = new FormData(); form.append('recipient', input.recipient); form.append('buildingId', input.buildingId);
@@ -117,5 +127,5 @@ export async function sendBuildingReportEmail(input: { recipient: string; buildi
     const part = await blobPart(input.template.uri, input.template.mimeType || 'application/octet-stream');
     form.append('attachments', part.blob, input.template.name);
   }
-  return bodyOf(await fetch(`${API_URL}/api/reports/building/send`, { method: 'POST', headers: bearer(input.accessToken), body: form }));
+  return reportRequest(`${API_URL}/api/reports/building/send`, { method: 'POST', headers: bearer(input.accessToken), body: form });
 }
