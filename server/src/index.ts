@@ -133,7 +133,7 @@ function buildBuildingReportHtml(payload: Awaited<ReturnType<typeof getBuildingR
     const finalStatus = counts['이상'] > 0 ? '이상' : counts['직접 확인'] > 0 ? '직접 확인' : '정상';
     const photo = Array.isArray(row.inspection_photos) ? row.inspection_photos.find((entry: { dataUri?: string }) => entry.dataUri) : undefined;
     const photoCell = photo?.dataUri
-      ? `<img alt="인증사진 ${index + 1}" src="${photo.dataUri}" style="width:112px;height:84px;object-fit:cover;border-radius:10px;border:1px solid #d9e1ef;" />`
+      ? `<div style="width:112px;height:84px;border-radius:10px;background:#eef3ff;border:1px solid #9fb2e8;display:flex;align-items:center;justify-content:center;color:#2448d8;font-weight:700;text-align:center;">첨부사진<br />${index + 1}</div>`
       : '<div style="width:112px;height:84px;border-radius:10px;background:#eef3ff;border:1px dashed #9fb2e8;display:flex;align-items:center;justify-content:center;color:#2448d8;font-weight:800;">사진 없음</div>';
     const major = details.slice(0, 3).map((item: { label?: string; status?: string }) => `${item.label || '-'}: ${item.status || '직접 확인'}`).join('<br />') || '점검 항목 미기록';
     return `<tr><td style="padding:8px;border:1px solid #d9e1ef;">${photoCell}</td><td style="padding:8px;border:1px solid #d9e1ef;">${escapeHtml(row.equipment_name || '-')}<br /><span style="color:#64748b;">${escapeHtml(row.equipment_id || '-')}</span></td><td style="padding:8px;border:1px solid #d9e1ef;">${escapeHtml(row.floor || '-')}</td><td style="padding:8px;border:1px solid #d9e1ef;font-weight:800;color:${finalStatus === '이상' ? '#b91c1c' : finalStatus === '직접 확인' ? '#b45309' : '#15803d'};">${escapeHtml(finalStatus)}</td><td style="padding:8px;border:1px solid #d9e1ef;">${major}</td><td style="padding:8px;border:1px solid #d9e1ef;">${escapeHtml(row.notes || '-')}</td></tr>`;
@@ -258,8 +258,13 @@ app.post('/api/reports/building/send', requireAuth, upload.array('attachments', 
     if (!recipient || !buildingId) return response.status(400).json({ message: 'recipient와 buildingId가 필요합니다.' });
     const reportData = await getBuildingReportData(buildingId, authOf(response));
     const html = buildBuildingReportHtml(reportData, authOf(response).name);
-    const attachments = files?.length ? await Promise.all(files.map(async (file) => ({ filename: file.originalname, content: await readFile(file.path), contentType: file.mimetype }))) : undefined;
-    return response.json({ sent: true, mail: await sendInspectionMail({ recipient, subject: `[FIRE CARE] ${reportData.building.name} 건물 점검 보고서`, html, attachments }) });
+    const photoAttachments = reportData.inspections.flatMap((row: any, index: number) => (Array.isArray(row.inspection_photos) ? row.inspection_photos : []).filter((photo: any) => photo.dataUri).map((photo: any) => {
+      const match = String(photo.dataUri).match(/^data:([^;]+);base64,(.+)$/);
+      return match ? { filename: photo.original_name || `inspection-photo-${index + 1}.jpg`, content: Buffer.from(match[2], 'base64'), contentType: match[1] } : undefined;
+    }).filter(Boolean)) as Array<{ filename: string; content: Buffer; contentType: string }>;
+    const fileAttachments = files?.length ? await Promise.all(files.map(async (file) => ({ filename: file.originalname, content: await readFile(file.path), contentType: file.mimetype }))) : [];
+    const attachments = [...photoAttachments, ...fileAttachments];
+    return response.json({ sent: true, mail: await sendInspectionMail({ recipient, subject: `[FIRE CARE] ${reportData.building.name} 건물 점검 보고서`, html, attachments: attachments.length ? attachments : undefined }) });
   } catch (error) { return next(error); }
   finally { if (files) await Promise.all(files.map((file) => unlink(file.path).catch(() => undefined))); }
 });
