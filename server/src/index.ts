@@ -22,6 +22,7 @@ const upload = multer({ dest: uploadDir, limits: { fileSize: 10 * 1024 * 1024 },
 
 app.use(cors());
 app.use(express.json({ limit: '2mb' }));
+app.get('/', (_request, response) => response.json({ service: 'FIRE CARE API', ok: true, health: '/health' }));
 // Keep a reasonable guard against abuse while allowing repeated academic-demo attempts.
 // Registration and login share this limiter, so the previous limit of 10 could lock
 // out an entire demo session after a few retries from the same network.
