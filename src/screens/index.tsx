@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
 import * as ImagePicker from 'expo-image-picker';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -240,7 +240,7 @@ export function InspectionScreen({ session, selected, navigate, onComplete, acce
     const sourceWidth = width || 1600;
     const sourceHeight = height || 1600;
     const scale = Math.min(1, 1600 / Math.max(sourceWidth, sourceHeight));
-    const resized = await ImageManipulator.manipulateAsync(
+    const resized = Platform.OS === 'web' ? { uri, width: sourceWidth, height: sourceHeight } : await ImageManipulator.manipulateAsync(
       uri,
       scale < 1 ? [{ resize: { width: Math.round(sourceWidth * scale), height: Math.round(sourceHeight * scale) } }] : [],
       { compress: 0.75, format: ImageManipulator.SaveFormat.JPEG },
