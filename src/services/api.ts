@@ -71,7 +71,14 @@ export async function bootstrapWorkspace(accessToken: string): Promise<{ workspa
   return bodyOf(await fetch(`${API_URL}/api/sync/bootstrap`, { headers: bearer(accessToken) }));
 }
 export async function saveEquipment(buildingId: string, equipment: Equipment, accessToken: string): Promise<Equipment> {
-  return bodyOf(await fetch(`${API_URL}/api/buildings/${encodeURIComponent(buildingId)}/equipment`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...bearer(accessToken) }, body: JSON.stringify(equipment) }));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15_000);
+  try {
+    return await bodyOf(await fetch(`${API_URL}/api/buildings/${encodeURIComponent(buildingId)}/equipment`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...bearer(accessToken) }, body: JSON.stringify(equipment), signal: controller.signal }));
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') throw new Error('설비 저장 시간이 초과되었습니다. 서버 연결을 확인해주세요.');
+    throw error;
+  } finally { clearTimeout(timer); }
 }
 export async function fetchEquipment(buildingId: string, accessToken: string): Promise<Equipment[]> {
   return bodyOf(await fetch(`${API_URL}/api/buildings/${encodeURIComponent(buildingId)}/equipment`, { headers: bearer(accessToken) }));
