@@ -257,8 +257,10 @@ export function InspectionScreen({ session, selected, navigate, onComplete, acce
   };
 
   const pickMedia = async () => {
-    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!permission.granted) return Alert.alert('권한 필요', '사진을 선택하려면 사진 보관함 접근 권한이 필요합니다.');
+    if (Platform.OS !== 'web') {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted) return Alert.alert('권한 필요', '사진을 선택하려면 사진 보관함 접근 권한이 필요합니다.');
+    }
     const result = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.8 });
     if (!result.canceled) {
       try { await applyPhoto(result.assets[0].uri, result.assets[0].width, result.assets[0].height); }
